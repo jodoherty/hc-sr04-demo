@@ -19,17 +19,16 @@ volatile unsigned long time_triggered = 0;
 volatile unsigned long time_echo_start = 0;
 volatile unsigned long time_echo_end = 0;
 
-
 int range;
 
-void echo_change();
+void echo_pin_change();
 
 void setup()
 {
   Serial.begin(9600);
   pinMode(pinNametoDigitalPin(trigger_pin), OUTPUT);
   pinMode(pinNametoDigitalPin(echo_pin), INPUT);
-  attachInterrupt(digitalPinToInterrupt(pinNametoDigitalPin(echo_pin)), echo_change, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(pinNametoDigitalPin(echo_pin)), echo_pin_change, CHANGE);
   Serial.println("started");
 }
 
@@ -77,7 +76,7 @@ void loop()
   }
 }
 
-void echo_change()
+void echo_pin_change()
 {
   unsigned long time = micros();
   int value = digitalReadFast(echo_pin);
