@@ -4,16 +4,21 @@ const unsigned long TIMEOUT_MICROS = 1000000;
 const unsigned long ECHO_WAIT_MICROS = 60000;
 const int MAX_DISTANCE = 60;
 
+const int STATE_ERROR = -1;
 const int STATE_READY = 0;
 const int STATE_TRIGGERED = 1;
 const int STATE_ECHO_STARTED = 2;
 const int STATE_ECHO_ENDED = 3;
+
+const PinName trigger_pin = digitalPinToPinName(PA0);
+const PinName echo_pin = digitalPinToPinName(PA1);
 
 volatile int state = STATE_READY;
 
 volatile unsigned long time_triggered = 0;
 volatile unsigned long time_echo_start = 0;
 volatile unsigned long time_echo_end = 0;
+
 
 int range;
 
@@ -22,9 +27,9 @@ void echo_change();
 void setup()
 {
   Serial.begin(9600);
-  pinMode(PA0, OUTPUT);
-  pinMode(PA1, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PA1), echo_change, CHANGE);
+  pinMode(pinNametoDigitalPin(trigger_pin), OUTPUT);
+  pinMode(pinNametoDigitalPin(echo_pin), INPUT);
+  attachInterrupt(digitalPinToInterrupt(pinNametoDigitalPin(echo_pin)), echo_change, CHANGE);
   Serial.println("started");
 }
 
@@ -33,14 +38,16 @@ void loop()
   unsigned long time = micros();
 
   if (state != STATE_READY) {
-    if (time < time_triggered) {
+    if (state == STATE_ERROR) {
+      Serial.println("error detected. resetting state");
+      state = STATE_READY;
+      return;
+    } else if (time < time_triggered) {
       Serial.println("overflow detected. resetting state");
       state = STATE_READY;
       return;
-    }
-
-    if (time - time_triggered >= 10) {
-      digitalWrite(PA0, LOW);
+    } else if (time - time_triggered >= 10) {
+      digitalWriteFast(trigger_pin, LOW);
     }
   }
 
@@ -48,7 +55,7 @@ void loop()
   case STATE_READY:
     if (time - time_echo_end > ECHO_WAIT_MICROS) {
       state = STATE_TRIGGERED;
-      digitalWrite(PA0, HIGH);
+      digitalWriteFast(trigger_pin, HIGH);
       time_triggered = time;
     }
     break;
@@ -73,20 +80,18 @@ void loop()
 void echo_change()
 {
   unsigned long time = micros();
-  int value = digitalRead(PA1);
+  int value = digitalReadFast(echo_pin);
   if (value == HIGH) {
     time_echo_start = time;
     if (state != STATE_TRIGGERED) {
-      Serial.print("error transitioning to echo ended, previous state:");
-      Serial.println(state);
+      state = STATE_ERROR;
     }
     state = STATE_ECHO_STARTED;
   }
   else {
     time_echo_end = time;
     if (state != STATE_ECHO_STARTED) {
-      Serial.print("error transitioning to echo started, previous state:");
-      Serial.println(state);
+      state = STATE_ERROR;
     }
     state = STATE_ECHO_ENDED;
   }
